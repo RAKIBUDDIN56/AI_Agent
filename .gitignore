@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.env/
+.venv/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Persistent ChromaDB data (runtime files)
+# chroma_db/
+*.parquet
+*.sqlite3
+
+# IDE/editor files
+.vscode/
+.idea/
+
+# Logs and temp
+*.log
+*.tmp
+*.bak
+
+# MacOS
+.DS_Store
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Python test
