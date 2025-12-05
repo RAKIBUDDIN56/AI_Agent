@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>TableRF RAG Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+
+        #chat-container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            height: 400px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .user-message {
+            background-color: #e3f2fd;
+            text-align: right;
+        }
+
+        .bot-message {
+            background-color: #f5f5f5;
+        }
+
+        .sources {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        input {
+            width: 80%;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0b7dda;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🤖 TableRF RAG Assistant</h1>
+
+    <div id="chat-container"></div>
+
+    <div>
+        <input type="text" id="query-input" placeholder="Ask about TableRF..." />
+        <button onclick="sendQuery()">Send</button>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+
+        async function sendQuery() {
+            const input = document.getElementById('query-input');
+            const query = input.value.trim();
+
+            if (!query) return;
+
+            // Add user message
+            addMessage(query, 'user');
+            input.value = '';
+
+            try {
+                const response = await fetch(`${API_URL}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        top_k: 5
+                    })
+                });
+
+                const data = await response.json();
+
+                // Add bot message with sources
+                let sourcesHtml = '<div class="sources"><strong>Sources:</strong><br>';
+                data.sources.forEach(s => {
+                    sourcesHtml += `📄 ${s.filename} (score: ${s.score.toFixed(4)})<br>`;
+                });
+                sourcesHtml += '</div>';
+
+                addMessage(data.answer + sourcesHtml, 'bot');
+
+            } catch (error) {
+                addMessage('Error: ' + error.message, 'bot');
+            }
+        }
+
+        function addMessage(text, type) {
+            const container = document.getElementById('chat-container');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}-message`;
+            messageDiv.innerHTML = text;
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Allow Enter key to send
+        document.getElementById('query-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendQuery();
+        });
+    </script>
+</body>
+
+</html>
+```
+
+Open `frontend.html` in your browser to use the chat interface!
+
+---
+
+## 📁 Final Project Structure:
+```
+your_project/
+├── main.py # FastAPI application
+├── file_wise_rag.py # Your RAG class
+├── frontend.html # Optional web UI
+├── chroma_db/
+│ ├── __init__.py
+│ ├── db_client.py
+│ ├── collection_manager.py
+│ └── doc_loader.py
+├── docs/
+│ └── tablerf/
+│ ├── doc1.md
+│ ├── doc2.md
+│ └── ...
+└── chroma_db_data/ # ChromaDB storage
