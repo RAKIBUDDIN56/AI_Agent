@@ -7,5 +7,5 @@ from config.doc_loader import DocLoader
 
 
 if __name__ == "__main__":
-    loader = DocLoader(docs_dir="./docs/tablerf")
+    loader = DocLoader(docs_dir="./docs")
     loader.load_docs()

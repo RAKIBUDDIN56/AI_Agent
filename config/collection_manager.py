@@ -43,6 +43,24 @@ class CollectionManager:
                     "score": score
                 })
         return docs
+    def clear_collection(self):
+    # Fetch all documents
+        all_docs = self.collection.get()
+    
+    # Depending on version, all_docs['ids'] or all_docs.ids
+        try:
+            ids = all_docs['ids']  # For older versions
+        except (TypeError, KeyError):
+        # Newer versions return a list of dicts
+            ids = [doc['id'] for doc in all_docs]  # adjust if needed
+    
+        if ids:
+            self.collection.delete(ids=ids)
+            print(f"Collection  cleared ({len(ids)} docs)")
+        else:
+            print(f"Collection is already empty")
+
+
     
     def get_count(self):
         """Get total document count"""

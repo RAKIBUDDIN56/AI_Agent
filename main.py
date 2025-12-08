@@ -75,7 +75,7 @@ class HealthResponse(BaseModel):
     model_name: str
 
 class LoadDocsRequest(BaseModel):
-    docs_dir: str = Field(default="./docs/tablerf")
+    docs_dir: str = Field(default="./docs")
 
 class LoadDocsResponse(BaseModel):
     success: bool
