@@ -1,5 +1,5 @@
 from sentence_transformers import SentenceTransformer
-from chroma_db.collection_manager import CollectionManager
+from config.collection_manager import CollectionManager
 import ollama
 
 class FileWiseRAG:

@@ -3,40 +3,59 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List
 from rag import FileWiseRAG
-from chroma_db.doc_loader import DocLoader
+from config.doc_loader import DocLoader
 import logging
-import os
+from contextlib import asynccontextmanager
 
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI
+rag_system = None  # global
+
+# Lifespan handler
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global rag_system
+    try:
+        logger.info("Initializing RAG system on startup...")
+        rag_system = FileWiseRAG(
+            collection_name="table_rf_docs",
+            model_name="llama3:latest"
+        )
+        logger.info("RAG system initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize RAG system: {e}")
+        raise
+
+    yield  # app runs here
+
+    logger.info("Shutting down application...")
+
+# FastAPI initialization with lifespan
 app = FastAPI(
     title="RapidFire RAG API",
     description="Retrieval-Augmented Generation API for RapidFire",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan  
 )
 
-# Add CORS middleware
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend URL
+    allow_origins=["*"],  # In production, restrict this
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize RAG system
-rag_system = None
-
-# Pydantic models for request/response
+# Models
 class QueryRequest(BaseModel):
-    query: str = Field(..., min_length=1, description="User question")
-    top_k: int = Field(default=5, ge=1, le=20, description="Number of documents to retrieve")
+    query: str = Field(..., min_length=1)
+    top_k: int = Field(default=5, ge=1, le=20)
 
 class Source(BaseModel):
     filename: str
@@ -56,7 +75,7 @@ class HealthResponse(BaseModel):
     model_name: str
 
 class LoadDocsRequest(BaseModel):
-    docs_dir: str = Field(default="./docs/tablerf", description="Directory containing documents")
+    docs_dir: str = Field(default="./docs/tablerf")
 
 class LoadDocsResponse(BaseModel):
     success: bool
@@ -64,30 +83,12 @@ class LoadDocsResponse(BaseModel):
     message: str
 
 
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Initialize RAG system on startup"""
-    global rag_system
-    try:
-        logger.info("Initializing RAG system...")
-        rag_system = FileWiseRAG(
-            collection_name="table_rf_docs",
-            model_name="llama3:latest"
-        )
-        logger.info("RAG system initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize RAG system: {e}")
-        raise
-
-
-# Health check endpoint
+# Health check
 @app.get("/", response_model=HealthResponse)
 async def health_check():
-    """Check if the API is running and RAG system is ready"""
     if rag_system is None:
-        raise HTTPException(status_code=503, detail="RAG system not initialized")
-    
+        raise HTTPException(status_code=503, detail="RAG not initialized")
+
     try:
         doc_count = rag_system.collection.get_count()
         return HealthResponse(
@@ -97,28 +98,19 @@ async def health_check():
             model_name=rag_system.model_name
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
-
+        raise HTTPException(status_code=500, detail=f"Health failed: {e}")
 
 # Query endpoint
 @app.post("/query", response_model=QueryResponse)
 async def query_documents(request: QueryRequest):
-    """
-    Query the RAG system with a question
-    
-    - **query**: Your question about TableRF
-    - **top_k**: Number of relevant documents to retrieve (default: 5)
-    """
     if rag_system is None:
-        raise HTTPException(status_code=503, detail="RAG system not initialized")
-    
+        raise HTTPException(status_code=503, detail="RAG not initialized")
+
     try:
-        logger.info(f"Processing query: {request.query}")
-        
-        # Get answer from RAG system
+        logger.info(f"🔍 Processing query: {request.query}")
+
         answer, sources = rag_system.ask(request.query, top_k=request.top_k)
-        
-        # Format sources for response
+
         formatted_sources = [
             Source(
                 filename=s['filename'],
@@ -127,58 +119,49 @@ async def query_documents(request: QueryRequest):
             )
             for s in sources
         ]
-        
+
         return QueryResponse(
             answer=answer,
             sources=formatted_sources,
             query=request.query,
             documents_searched=len(sources)
         )
-    
     except Exception as e:
-        logger.error(f"Query failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Query processing failed: {str(e)}")
+        logger.error(f"❌ Query failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# Load documents endpoint
+# Load docs
 @app.post("/load-docs", response_model=LoadDocsResponse)
 async def load_documents(request: LoadDocsRequest):
-    """
-    Load documents from a directory into the vector database
-    
-    - **docs_dir**: Path to directory containing .md files (default: ./docs/tablerf)
-    """
     try:
-        logger.info(f"Loading documents from: {request.docs_dir}")
-        
+        logger.info(f"📂 Loading docs from: {request.docs_dir}")
+
         loader = DocLoader(docs_dir=request.docs_dir)
         count = loader.load_docs()
-        
-        # Reinitialize RAG system to pick up new documents
+
         global rag_system
         rag_system = FileWiseRAG(
             collection_name="table_rf_docs",
             model_name="llama3:latest"
         )
-        
+
         return LoadDocsResponse(
             success=True,
             documents_loaded=count,
-            message=f"Successfully loaded {count} documents"
+            message=f"Loaded {count} documents"
         )
-    
     except Exception as e:
-        logger.error(f"Document loading failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to load documents: {str(e)}")
+        logger.error(f"❌ Load failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# Get collection stats
+# Stats endpoint
 @app.get("/stats")
 async def get_stats():
-    """Get statistics about the document collection"""
     if rag_system is None:
-        raise HTTPException(status_code=503, detail="RAG system not initialized")
-    
+        raise HTTPException(status_code=503, detail="RAG not initialized")
+
     try:
         doc_count = rag_system.collection.get_count()
         return {
@@ -188,17 +171,18 @@ async def get_stats():
             "llm_model": rag_system.model_name
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 @app.get("/app")
 async def serve_frontend():
-    """Serve the frontend HTML"""
     return FileResponse("static/index.html")
 
 
+# Uvicorn entry
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-# 
