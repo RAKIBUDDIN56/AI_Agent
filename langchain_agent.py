@@ -1,13 +1,10 @@
-import os
 from typing import Dict, List, Tuple, Optional, Any
 from datetime import datetime
 import re
 
 # LangChain Core
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.chat_history import BaseChatMessageHistory, InMemoryChatMessageHistory
+from langchain_core.chat_history import  InMemoryChatMessageHistory
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 # LangChain Community
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -26,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ConversationMemory:
     """Simple conversation memory storage"""
     
-    def __init__(self):
+    def __init__(self): 
         self.sessions: Dict[str, InMemoryChatMessageHistory] = {}
     
     def get_session(self, session_id: str) -> InMemoryChatMessageHistory:

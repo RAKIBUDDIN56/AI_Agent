@@ -3,6 +3,7 @@ import uuid
 from sentence_transformers import SentenceTransformer
 from .collection_manager import CollectionManager
 
+
 class DocLoader:
     def __init__(self, docs_dir="./docs"):
         self.docs_dir = docs_dir
